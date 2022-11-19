@@ -1,0 +1,107 @@
+org: taosharma
+app: eikaiwa-backend
+# The name of the project. Will be included as a suffix in all Lambda functions associated with the project.
+
+service: eikaiwa-backend
+
+# A custom environment object. Can be accessed in the .yml with the syntax: ${self:}
+
+custom:
+  settings:
+    # The name of the custom table in DynamoDB
+
+    EIKAIWA_TABLE: eikaiwaTable
+
+# A provider object.
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+
+  # Assigns the enviroment using the settings written above.
+
+  environment: ${self:custom.settings}
+
+  # Tells the .yml to use servers in Ireland.
+
+  region: eu-west-1
+
+  cfnRole: arn:aws:iam::971155623121:role/serverless-role
+
+  # iamRoleStatements allows your AWS IAM rol to perform the functions listed below.
+
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - dynamodb:DescribeTable #to know metadata about the table
+        - dynamodb:Scan #gets all the items (like a get req)
+        - dynamodb:GetItem #gets one item
+        - dynamodb:PutItem #adds one item
+        - dynamodb:UpdateItem #like a patch request
+        - dynamodb:DeleteItem #deletes
+      Resource:
+        'arn:aws:dynamodb:${self:provider.region}:*:table/${self:custom.settings.EIKAIWA_TABLE}'
+        # arn (Amazon Resource Name), then specify DynamoDB.
+        # Then use self to point to the region in the above provider object.
+        # Then use self again to define the table declared in the custom environment variables.
+
+# A functions object. This contains all of the CRUD request functions that the database uses
+
+functions:
+  addNewArticle: # POST request.
+    handler: handler.addNewArticle # Accesses the function in the handler.js file.
+    events:
+      - http:
+          path: / # The path will be added to the deployment URL.
+          method: post # The HTTP method this function responds to.
+          cors: true # Allows the function get through CORS.
+  getAllArticles: # GET request.
+    handler: handler.getAllArticles
+    events:
+      - http:
+          path: /
+          method: get
+          cors: true
+  getArticleById: # GET request.
+    handler: handler.getArticleById
+    events:
+      - http:
+          path: /{id}
+          method: get
+          cors: true
+  updateArticleCommentsById: # PATCH request.
+    handler: handler.updateArticleCommentsById
+    events:
+      - http:
+          path: /{id}
+          method: patch
+          cors: true
+
+resources:
+  Resources:
+    buroguTable:
+      # Specifies that we want the resource to create a DynamoDB table.
+
+      Type: AWS::DynamoDB::Table
+
+      # The properties of the table.
+
+      Properties:
+        # The attribute that defines the required fields of the table: a string ID.
+
+        AttributeDefinitions:
+          - AttributeName: 'id'
+            AttributeType: 'S'
+
+        # The attribute that defines the primary key for the table: the above id.
+
+        KeySchema:
+          - AttributeName: 'id'
+            KeyType: 'HASH'
+
+        # The attribute that controls how many times the table can be used.
+
+        ProvisionedThroughput:
+          ReadCapacityUnits: 10
+          WriteCapacityUnits: 10
+        TableName: ${self:custom.settings.EIKAIWA_TABLE}
